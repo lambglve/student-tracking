@@ -24,6 +24,18 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
+    .plan-card {
+        background-color: #1f77b4; /* Solid blue background */
+        color: white !important; /* Force white text */
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .plan-card h3, .plan-card p {
+        color: white !important;
+        margin: 0;
+    }
     .session-card {
         padding: 1rem;
         border-radius: 10px;
@@ -60,6 +72,12 @@ st.markdown("""
 
 # Initialize database
 db = Database()
+
+def get_score_color(score):
+    if score >= 8.0: return "#28a745"
+    elif score >= 6.5: return "#ffc107"
+    elif score >= 5.0: return "#fd7e14"
+    else: return "#dc3545"
 
 def calculate_band_score(fluency, lexical, grammatical, pronunciation):
     """Calculate and round the average IELTS band score to the nearest 0.5"""
@@ -252,6 +270,12 @@ def teacher_view():
             placeholder="Feedback that will be visible to the student...",
             height=150
         )
+
+        st.markdown("### 🎯 Next Session Plan")
+        upcoming_plan = st.text_area(
+            f"What will {selected_student} learn next?", 
+            placeholder="Objectives..."
+        )
         
         # Save session
         col1, col2, col3 = st.columns([1, 1, 2])
@@ -266,7 +290,8 @@ def teacher_view():
                     'pronunciation': pronunciation,
                     'band_score': band_score,
                     'teacher_notes': teacher_notes,
-                    'student_feedback': student_feedback
+                    'student_feedback': student_feedback,
+                    'upcoming_plan': upcoming_plan
                 }
                 
                 db.save_session(selected_student, session_data)
@@ -370,6 +395,19 @@ def student_view():
                 st.metric("Last Session", "N/A")
         
         st.divider()
+
+        # Display Upcoming Plan with readable White-on-Blue text
+        if sessions_data:
+            last_idx = max([int(k) for k in sessions_data.keys() if sessions_data[k].get('band_score')], default=0)
+            current_s = sessions_data.get(str(last_idx))
+            
+            if current_s and current_s.get('upcoming_plan'):
+                st.markdown(f"""
+                    <div class="plan-card">
+                        <h3>🎯 Coming Up Next: Session {last_idx + 1}</h3>
+                        <p>{current_s['upcoming_plan']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
         
         # Roadmap visualization
         if sessions_data:

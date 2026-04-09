@@ -16,7 +16,7 @@ class Database:
         return sqlite3.connect(self.db_path)
     
     def init_database(self):
-        """Initialize database tables"""
+        """Initialize database tables and handle migrations"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
@@ -30,7 +30,7 @@ class Database:
             )
         ''')
         
-        # Sessions table
+        # Sessions table (Updated with upcoming_plan)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,12 +44,20 @@ class Database:
                 band_score REAL,
                 teacher_notes TEXT,
                 student_feedback TEXT,
+                upcoming_plan TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_id) REFERENCES students(id),
                 UNIQUE(student_id, session_number)
             )
         ''')
+
+        # Migration: Add upcoming_plan column if it doesn't exist in an old DB
+        try:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN upcoming_plan TEXT")
+        except sqlite3.OperationalError:
+            # Column already exists, ignore error
+            pass
         
         conn.commit()
         conn.close()
@@ -105,7 +113,7 @@ class Database:
         return result[0] if result else None
     
     def save_session(self, student_name, session_data):
-        """Save or update a session"""
+        """Save or update a session including the next session plan"""
         student_id = self.get_student_id(student_name)
         if not student_id:
             return False
@@ -119,8 +127,8 @@ class Database:
                     student_id, session_number, session_date,
                     fluency, lexical, grammatical, pronunciation,
                     band_score, teacher_notes, student_feedback,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    upcoming_plan, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(student_id, session_number) 
                 DO UPDATE SET
                     session_date = excluded.session_date,
@@ -131,6 +139,7 @@ class Database:
                     band_score = excluded.band_score,
                     teacher_notes = excluded.teacher_notes,
                     student_feedback = excluded.student_feedback,
+                    upcoming_plan = excluded.upcoming_plan,
                     updated_at = excluded.updated_at
             ''', (
                 student_id,
@@ -143,6 +152,7 @@ class Database:
                 session_data['band_score'],
                 session_data['teacher_notes'],
                 session_data['student_feedback'],
+                session_data.get('upcoming_plan', ''),
                 datetime.now().isoformat()
             ))
             
@@ -155,7 +165,7 @@ class Database:
             conn.close()
     
     def get_student_sessions(self, student_name):
-        """Get all sessions for a student"""
+        """Get all sessions for a student including upcoming plans"""
         student_id = self.get_student_id(student_name)
         if not student_id:
             return {}
@@ -166,7 +176,7 @@ class Database:
         cursor.execute('''
             SELECT session_number, session_date, fluency, lexical,
                    grammatical, pronunciation, band_score,
-                   teacher_notes, student_feedback
+                   teacher_notes, student_feedback, upcoming_plan
             FROM sessions
             WHERE student_id = ?
             ORDER BY session_number
@@ -183,7 +193,8 @@ class Database:
                 'pronunciation': row[5],
                 'band_score': row[6],
                 'teacher_notes': row[7],
-                'student_feedback': row[8]
+                'student_feedback': row[8],
+                'upcoming_plan': row[9]
             }
         
         conn.close()
@@ -208,7 +219,7 @@ class Database:
         return True
 
     def delete_student(self, student_name):
-        """Permanently delete a student and all their associated session data"""
+        """Permanently delete a student and all their associated data"""
         student_id = self.get_student_id(student_name)
         if not student_id:
             return False
@@ -217,11 +228,8 @@ class Database:
         cursor = conn.cursor()
         
         try:
-            # Delete sessions first
             cursor.execute('DELETE FROM sessions WHERE student_id = ?', (student_id,))
-            # Then delete student record
             cursor.execute('DELETE FROM students WHERE id = ?', (student_id,))
-            
             conn.commit()
             return True
         except Exception as e:
@@ -234,18 +242,13 @@ class Database:
     def get_session_stats(self, student_name):
         """Get statistics for a student"""
         sessions = self.get_student_sessions(student_name)
-        
         if not sessions:
             return {
-                'total_sessions': 0,
-                'average_score': 0,
-                'highest_score': 0,
-                'lowest_score': 0,
-                'progress_percentage': 0
+                'total_sessions': 0, 'average_score': 0, 'highest_score': 0,
+                'lowest_score': 0, 'progress_percentage': 0
             }
         
         scores = [s['band_score'] for s in sessions.values() if s.get('band_score')]
-        
         return {
             'total_sessions': len(sessions),
             'average_score': sum(scores) / len(scores) if scores else 0,
