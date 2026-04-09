@@ -190,7 +190,7 @@ class Database:
         return sessions
     
     def delete_session(self, student_name, session_number):
-        """Delete a session"""
+        """Delete a single session"""
         student_id = self.get_student_id(student_name)
         if not student_id:
             return False
@@ -206,6 +206,30 @@ class Database:
         conn.commit()
         conn.close()
         return True
+
+    def delete_student(self, student_name):
+        """Permanently delete a student and all their associated session data"""
+        student_id = self.get_student_id(student_name)
+        if not student_id:
+            return False
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Delete sessions first
+            cursor.execute('DELETE FROM sessions WHERE student_id = ?', (student_id,))
+            # Then delete student record
+            cursor.execute('DELETE FROM students WHERE id = ?', (student_id,))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error deleting student: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
     
     def get_session_stats(self, student_name):
         """Get statistics for a student"""

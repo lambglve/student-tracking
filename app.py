@@ -118,7 +118,7 @@ def create_roadmap_chart(sessions_data):
     # Add reference lines for IELTS bands
     for band, label in [(5.0, 'Band 5'), (6.5, 'Band 6.5'), (8.0, 'Band 8')]:
         fig.add_hline(y=band, line_dash="dash", line_color="gray", opacity=0.5,
-                     annotation_text=label, annotation_position="right")
+                      annotation_text=label, annotation_position="right")
     
     fig.update_layout(
         title="30-Session Learning Roadmap",
@@ -153,6 +153,22 @@ def teacher_view():
                 st.rerun()
     
     if selected_student and selected_student != "Add New Student...":
+        # --- STUDENT MANAGEMENT (DANGER ZONE) ---
+        with st.expander("⚠️ Student Management (Danger Zone)"):
+            st.warning(f"Warning: Deleting **{selected_student}** will erase all session records permanently.")
+            confirm_deletion = st.checkbox(f"I am sure I want to delete all data for {selected_student}")
+            
+            if st.button(f"🗑️ Delete {selected_student} Permanently", type="secondary"):
+                if confirm_deletion:
+                    if db.delete_student(selected_student):
+                        st.success(f"Successfully deleted {selected_student}.")
+                        st.rerun()
+                    else:
+                        st.error("Something went wrong with the database.")
+                else:
+                    st.info("Please check the confirmation box first.")
+        # ----------------------------------------
+        
         st.divider()
         
         # Session selector
@@ -368,16 +384,7 @@ def student_view():
             session = sessions_data.get(str(i))
             
             if session and session.get('band_score'):
-                status_class = "completed"
                 status_icon = "✅"
-            elif i == completed_sessions + 1:
-                status_class = "current"
-                status_icon = "🔄"
-            else:
-                status_class = "future"
-                status_icon = "⏳"
-            
-            if session and session.get('band_score'):
                 with st.expander(f"{status_icon} Session {i} - {session.get('date', 'N/A')} - Band: {session.get('band_score', 'N/A')}"):
                     col1, col2 = st.columns(2)
                     
@@ -404,6 +411,10 @@ def student_view():
                     if session.get('student_feedback'):
                         st.write("**Teacher's Feedback:**")
                         st.success(session['student_feedback'])
+            elif i == completed_sessions + 1:
+                st.info(f"🔄 Session {i} - Up Next")
+            else:
+                pass # Optionally show placeholders for future sessions
 
 def main():
     """Main application"""
