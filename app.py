@@ -62,20 +62,21 @@ st.markdown("""
 db = Database()
 
 def calculate_band_score(fluency, lexical, grammatical, pronunciation):
-    """Calculate the average IELTS band score"""
-    scores = [fluency, lexical, grammatical, pronunciation]
-    return round(sum(scores) / len(scores), 1)
-
-def get_score_color(score):
-    """Return color based on score range"""
-    if score >= 8.0:
-        return "#28a745"  # Green
-    elif score >= 6.5:
-        return "#ffc107"  # Yellow
-    elif score >= 5.0:
-        return "#fd7e14"  # Orange
+    """Calculate and round the average IELTS band score to the nearest 0.5"""
+    average = sum([fluency, lexical, grammatical, pronunciation]) / 4
+    
+    # IELTS Rounding Logic:
+    # 0.0 - 0.24 -> 0.0
+    # 0.25 - 0.74 -> 0.5
+    # 0.75 - 0.99 -> 1.0
+    
+    fraction = average % 1
+    if fraction < 0.25:
+        return float(int(average))
+    elif fraction < 0.75:
+        return float(int(average)) + 0.5
     else:
-        return "#dc3545"  # Red
+        return float(int(average)) + 1.0
 
 def create_roadmap_chart(sessions_data):
     """Create an interactive roadmap visualization"""
